@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Always-Active Media",
-  "version": "1.0.1",
+  "version": "1.0.3",
   "description": "Prevents online learning platforms and media sites from pausing video when switching tabs, minimizing, or losing focus.",
   "permissions": [
     "storage",

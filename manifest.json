@@ -1,0 +1,27 @@
+{
+  "manifest_version": 3,
+  "name": "Always-Active Media",
+  "version": "1.0.1",
+  "description": "Prevents online learning platforms and media sites from pausing video when switching tabs, minimizing, or losing focus.",
+  "permissions": [
+    "storage",
+    "scripting",
+    "tabs"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "action": {
+    "default_title": "Always-Active Media (Click to Toggle)"
+  },
+  "background": {
+    "service_worker": "background.js",
+    "scripts": ["background.js"]
+  },
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "always-active-media@local.addon",
+      "strict_min_version": "128.0"
+    }
+  }
+}

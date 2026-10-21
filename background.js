@@ -2,9 +2,47 @@
  * Always-Active Media - Background Service Worker
  * Manages per-domain activation, dynamic MAIN world script registration, and badge state.
  */
-
 const SCRIPT_ID = 'always-active-main';
 const BADGE_COLOR = '#10B981';
+
+// Mutex queue to prevent race conditions during storage updates & script registration
+let operationChain = Promise.resolve();
+function enqueueOperation(task) {
+  operationChain = operationChain.then(task, task);
+  return operationChain;
+}
+
+/**
+ * Normalizes a hostname by lowercasing and stripping trailing FQDN dots.
+ * @param {string} host
+ * @returns {string}
+ */
+function normalizeHost(host) {
+  return typeof host === 'string' ? host.trim().toLowerCase().replace(/\.+$/, '') : '';
+}
+
+/**
+ * Checks whether a hostname is a valid IPv4 or IPv6 literal.
+ * @param {string} host
+ * @returns {boolean}
+ */
+function isIpAddress(host) {
+  if (host.startsWith('[') && host.endsWith(']')) return true; // IPv6
+  const ipv4Match = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(host);
+  if (!ipv4Match) return false;
+  return ipv4Match.slice(1).every((octet) => Number(octet) <= 255);
+}
+
+/**
+ * Validates that a hostname is safe to construct a Chrome match pattern.
+ * @param {string} host
+ * @returns {boolean}
+ */
+function isValidHost(host) {
+  if (!host) return false;
+  if (isIpAddress(host) || host === 'localhost') return true;
+  return /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)*$/i.test(host);
+}
 
 /**
  * Retrieve enabled hostnames from persistent storage.
@@ -12,7 +50,41 @@ const BADGE_COLOR = '#10B981';
  */
 async function getEnabledHosts() {
   const data = await chrome.storage.local.get({ enabledHosts: [] });
-  return Array.isArray(data.enabledHosts) ? data.enabledHosts : [];
+  if (!Array.isArray(data.enabledHosts)) return [];
+  return data.enabledHosts.map(normalizeHost).filter(isValidHost);
+}
+
+/**
+ * Finds the matching enabled rule for a given hostname (exact or parent domain match).
+ * @param {string} hostname
+ * @param {string[]} hosts
+ * @returns {string|null}
+ */
+function findMatchingHost(hostname, hosts) {
+  const normalized = normalizeHost(hostname);
+  if (!normalized) return null;
+  for (const h of hosts) {
+    if (normalized === h) return h;
+    if (!isIpAddress(h) && h !== 'localhost' && h.includes('.') && normalized.endsWith(`.${h}`)) {
+      return h;
+    }
+  }
+  return null;
+}
+
+/**
+ * Generates valid Chrome match patterns for a given hostname.
+ * Prevents invalid wildcard patterns on localhost and IP addresses.
+ * @param {string} host
+ * @returns {string[]}
+ */
+function buildMatchPatterns(host) {
+  const normalized = normalizeHost(host);
+  if (!isValidHost(normalized)) return [];
+  if (isIpAddress(normalized) || normalized === 'localhost' || !normalized.includes('.')) {
+    return [`*://${normalized}/*`];
+  }
+  return [`*://${normalized}/*`, `*://*.${normalized}/*`];
 }
 
 /**
@@ -28,17 +100,19 @@ async function syncDynamicScripts(hosts) {
 
   if (!hosts || hosts.length === 0) return;
 
-  const matches = [];
+  const matchSet = new Set();
   hosts.forEach((host) => {
-    matches.push(`*://*.${host}/*`, `*://${host}/*`);
+    buildMatchPatterns(host).forEach((pattern) => matchSet.add(pattern));
   });
+
+  if (matchSet.size === 0) return;
 
   try {
     await chrome.scripting.registerContentScripts([
       {
         id: SCRIPT_ID,
         js: ['inject.js'],
-        matches,
+        matches: Array.from(matchSet),
         runAt: 'document_start',
         world: 'MAIN',
         allFrames: true
@@ -62,14 +136,15 @@ async function injectAllFrames(tabId) {
       injectImmediately: true
     });
   } catch (_) {
-    // Fallback for browsers that don't support injectImmediately
     try {
       await chrome.scripting.executeScript({
         target: { tabId, allFrames: true },
         files: ['inject.js'],
         world: 'MAIN'
       });
-    } catch (_) {}
+    } catch (_) {
+      // Gracefully ignore closed frames or unsupported protocols
+    }
   }
 }
 
@@ -87,10 +162,8 @@ async function updateTabBadge(tabId, url) {
       await chrome.action.setBadgeText({ tabId, text: '' });
       return false;
     }
-
     const hosts = await getEnabledHosts();
-    const isEnabled = hosts.includes(parsed.hostname);
-
+    const isEnabled = Boolean(findMatchingHost(parsed.hostname, hosts));
     await chrome.action.setBadgeBackgroundColor({ tabId, color: BADGE_COLOR });
     await chrome.action.setBadgeText({
       tabId,
@@ -102,38 +175,40 @@ async function updateTabBadge(tabId, url) {
   }
 }
 
-// 1. Toggle extension status on toolbar action click
-chrome.action.onClicked.addListener(async (tab) => {
+// 1. Toggle extension status on toolbar action click (serialized to avoid race conditions)
+chrome.action.onClicked.addListener((tab) => {
   if (!tab.id || !tab.url) return;
+  enqueueOperation(async () => {
+    try {
+      const parsed = new URL(tab.url);
+      if (!['http:', 'https:'].includes(parsed.protocol)) return;
+      const hostname = normalizeHost(parsed.hostname);
+      if (!isValidHost(hostname)) return;
 
-  try {
-    const parsed = new URL(tab.url);
-    if (!['http:', 'https:'].includes(parsed.protocol)) return;
+      let hosts = await getEnabledHosts();
+      const matchedRule = findMatchingHost(hostname, hosts);
 
-    const hostname = parsed.hostname;
-    let hosts = await getEnabledHosts();
-    const isEnabled = hosts.includes(hostname);
+      if (matchedRule) {
+        // Remove all rules matching this hostname/parent domain so toggling OFF always works
+        hosts = hosts.filter((h) => findMatchingHost(hostname, [h]) === null);
+      } else {
+        hosts.push(hostname);
+      }
 
-    if (isEnabled) {
-      hosts = hosts.filter((h) => h !== hostname);
-    } else {
-      hosts.push(hostname);
+      await chrome.storage.local.set({ enabledHosts: hosts });
+      await syncDynamicScripts(hosts);
+      await updateTabBadge(tab.id, tab.url);
+
+      if (!matchedRule) {
+        await injectAllFrames(tab.id);
+      }
+    } catch (err) {
+      console.error('Failed to handle action click:', err);
     }
-
-    await chrome.storage.local.set({ enabledHosts: hosts });
-    await syncDynamicScripts(hosts);
-    await updateTabBadge(tab.id, tab.url);
-
-    // If enabling, inject into current page and all child iframes immediately
-    if (!isEnabled) {
-      await injectAllFrames(tab.id);
-    }
-  } catch (err) {
-    console.error('Failed to handle action click:', err);
-  }
+  });
 });
 
-// 2. Synchronize badge state & ensure cross-origin child iframes are injected
+// 2. Synchronize badge state & inject cross-origin iframes during and upon document load
 chrome.tabs.onActivated.addListener(async ({ tabId }) => {
   try {
     const tab = await chrome.tabs.get(tabId);
@@ -142,22 +217,28 @@ chrome.tabs.onActivated.addListener(async ({ tabId }) => {
 });
 
 chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
-  if (changeInfo.status === 'loading' || changeInfo.status === 'complete' || changeInfo.url) {
+  if (changeInfo.url) {
+    await updateTabBadge(tabId, tab.url);
+  }
+  if ((changeInfo.status === 'loading' || changeInfo.status === 'complete') && tab.url) {
     const isEnabled = await updateTabBadge(tabId, tab.url);
-    // Ensure cross-origin embedded video iframes inside enabled sites also get injected
-    if (isEnabled && (changeInfo.status === 'loading' || changeInfo.status === 'complete')) {
+    if (isEnabled) {
       await injectAllFrames(tabId);
     }
   }
 });
 
 // 3. Maintain script registration consistency on extension startup & installation
-chrome.runtime.onInstalled.addListener(async () => {
-  const hosts = await getEnabledHosts();
-  await syncDynamicScripts(hosts);
+chrome.runtime.onInstalled.addListener(() => {
+  enqueueOperation(async () => {
+    const hosts = await getEnabledHosts();
+    await syncDynamicScripts(hosts);
+  });
 });
 
-chrome.runtime.onStartup.addListener(async () => {
-  const hosts = await getEnabledHosts();
-  await syncDynamicScripts(hosts);
+chrome.runtime.onStartup.addListener(() => {
+  enqueueOperation(async () => {
+    const hosts = await getEnabledHosts();
+    await syncDynamicScripts(hosts);
+  });
 });

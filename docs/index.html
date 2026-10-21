@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Stop Video Auto-Pause on Tab Switch | Always-Active Media Extension (Chrome & Firefox)</title>
+  <meta name="description" content="Free, open-source Manifest V3 Chrome & Firefox extension to stop Udemy, Coursera, Canvas, edX, and video players from auto-pausing when you switch tabs or take notes on a second screen." />
+  <meta name="keywords" content="stop video pausing on tab switch, disable page visibility api chrome extension, prevent coursera auto pause, stop udemy pausing when switching tabs, always active tab extension, manifest v3" />
+  <link rel="canonical" href="https://YOUR_USERNAME.github.io/stop-video-autopause-on-tab-switch/" />
+
+  <!-- Open Graph / Reddit / Social Preview -->
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="Stop Video Auto-Pause on Tab Switch (Always-Active Media)" />
+  <meta property="og:description" content="Lightweight Chrome & Firefox extension that prevents Udemy, Coursera, Canvas, and media portals from pausing videos when you switch tabs or windows." />
+  <meta property="og:url" content="https://github.com/YOUR_USERNAME/stop-video-autopause-on-tab-switch" />
+
+  <!-- JSON-LD Structured Data for Google Search & Google AI Overviews -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "SoftwareApplication",
+        "name": "Always-Active Media (Stop Video Auto-Pause on Tab Switch)",
+        "operatingSystem": "Windows, macOS, Linux, ChromeOS",
+        "applicationCategory": "BrowserApplication",
+        "softwareVersion": "1.0.1",
+        "license": "https://opensource.org/licenses/MIT",
+        "offers": {
+          "@type": "Offer",
+          "price": "0",
+          "priceCurrency": "USD"
+        },
+        "description": "A non-intrusive Manifest V3 browser extension for Chrome, Brave, Edge, and Firefox that overrides the Page Visibility API (document.hidden, visibilitychange) and window.onblur on user-selected domains so online lectures and videos never auto-pause when switching tabs or clicking a second monitor.",
+        "downloadUrl": "https://github.com/YOUR_USERNAME/stop-video-autopause-on-tab-switch/releases/latest"
+      },
+      {
+        "@type": "FAQPage",
+        "mainEntity": [
+          {
+            "@type": "Question",
+            "name": "How do I stop videos from auto-pausing when I switch tabs in Chrome or Firefox?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "You can prevent videos on Coursera, Udemy, Canvas, and edX from pausing on tab switch by installing the open-source Always-Active Media browser extension. Clicking its toolbar icon overrides document.hidden, document.visibilityState, and window.onblur in the page's MAIN execution world so the browser always reports the tab as active and visible."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Why do Udemy, Coursera, and Canvas pause lectures when I click onto a second monitor?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Online learning platforms listen to the browser's Page Visibility API (visibilitychange) and window focus events (window.onblur, document.hasFocus). When you click outside the browser window to take notes in Notion, Obsidian, or Word, the browser fires a blur event that triggers the video player's pause function. Always-Active Media surgically blocks window-level blur and visibilitychange events without breaking page dropdowns or search bars."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Does disabling the Page Visibility API break Slack or Discord notifications?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Global visibility blocker extensions break Slack, Discord, and WhatsApp Web notifications because those apps assume you are reading the tab. Always-Active Media solves this by using a per-domain toolbar toggle—it only spoofs visibility on the specific video or learning sites you enable."
+            }
+          }
+        ]
+      }
+    ]
+  }
+  </script>
+
+  <style>
+    :root { --bg: #0f172a; --card: #1e293b; --text: #f8fafc; --muted: #94a3b8; --accent: #10b981; }
+    body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); max-width: 820px; margin: 0 auto; padding: 2.5rem 1.25rem; line-height: 1.65; }
+    h1, h2, h3 { line-height: 1.25; }
+    .badge { display: inline-block; background: rgba(16, 185, 129, 0.15); color: var(--accent); border: 1px solid var(--accent); padding: 0.25rem 0.75rem; border-radius: 999px; font-weight: 600; font-size: 0.85rem; margin-bottom: 1rem; }
+    .btn { display: inline-block; background: var(--accent); color: #052e16; font-weight: 700; text-decoration: none; padding: 0.75rem 1.4rem; border-radius: 0.5rem; margin-right: 0.75rem; margin-top: 0.5rem; }
+    .btn-secondary { background: var(--card); color: var(--text); border: 1px solid #334155; }
+    .card { background: var(--card); padding: 1.5rem; border-radius: 0.75rem; margin: 1.5rem 0; border: 1px solid #334155; }
+    code { background: #090d16; padding: 0.2rem 0.4rem; border-radius: 0.25rem; color: #38bdf8; }
+  </style>
+</head>
+<body>
+  <span class="badge">Manifest V3 • Zero Bloat • MIT License</span>
+  <h1>Stop Videos from Auto-Pausing When Switching Tabs or Windows</h1>
+  <p><strong>Always-Active Media</strong> is a lightweight, open-source browser extension for Chrome, Brave, Edge, and Firefox that stops online learning platforms (<strong>Udemy, Coursera, Canvas, edX, Panopto, Kaltura</strong>) and media players from automatically pausing playback when you switch tabs, minimize the browser, or take notes on a second screen.</p>
+
+  <div>
+    <a class="btn" href="https://github.com/MVYNE06/stop-video-autopause-on-tab-switch/releases/latest">Download Latest Release (.ZIP)</a>
+    <a class="btn btn-secondary" href="https://github.com/MVYNE06/stop-video-autopause-on-tab-switch">View Source on GitHub</a>
+  </div>
+
+  <div class="card">
+    <h2>How It Fixes Auto-Pause (Without Breaking the Web)</h2>
+    <p>Websites pause background videos by checking <code>document.hidden</code>, <code>document.visibilityState</code>, and listening to <code>visibilitychange</code> or <code>window.onblur</code>. Unlike older extensions that inject onto every website and break Slack/Discord desktop notifications, Always-Active Media uses a <strong>per-domain toolbar toggle</strong>.</p>
+    <ul>
+      <li><strong>One-Click Activation:</strong> Click the extension icon on any site to toggle the green <code>ON</code> badge.</li>
+      <li><strong>Cross-Origin Iframe Support:</strong> Works automatically inside embedded Vimeo, Kaltura, and Panopto lecture players.</li>
+      <li><strong>Non-Intrusive Event Guarding:</strong> Blocks window-level focus loss while leaving HTML inputs, dropdown menus, and search bars 100% functional.</li>
+    </ul>
+  </div>
+
+  <h2>Quick Installation Guide</h2>
+  <ol>
+    <li>Download and extract the latest ZIP from the <a style="color:var(--accent)" href="https://github.com/MVYNE06/stop-video-autopause-on-tab-switch/releases/latest">GitHub Releases page</a>.</li>
+    <li>In Chrome, Brave, or Edge, open <code>chrome://extensions</code> and enable <strong>Developer mode</strong> (top right).</li>
+    <li>Click <strong>Load unpacked</strong> and select the extracted folder.</li>
+    <li>Open your lecture tab, click the extension icon in your toolbar so it says <strong>ON</strong>, and multitask freely!</li>
+  </ol>
+</body>
+</html>
